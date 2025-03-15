@@ -62,3 +62,44 @@ class NodeHeap:
             if node.id == node_id:
                 return node
         return None
+
+    def push(self, nodes):
+        if not isinstance(nodes, list):
+            nodes = [nodes]
+
+        for node in nodes:
+            if node not in self:
+                heapq.heappush(self.heap,(self.node.distance_to(node), node))
+
+    def mark_contacted(self, node):
+        self.contacted.add(node.id)
+
+    def popleft(self):
+        return heapq.heappop(self.heap)[1] if self else None
+
+    def get_id(self):
+        return [n.id for n in self.heap]
+
+
+    def have_contacted_all(self):
+        return len(self.get_not_contacted()) == 0
+
+    def get_not_contacted(self):
+        return [node for node in self if node.id not in self.contacted]
+
+
+    def __len__(self):
+        return min(len(self.heap), self.maxsize)
+
+
+    def __contains__(self, node):
+        for _, other in self.heap:
+            if node.id == other.id:
+                return True
+
+        return False
+
+    def __iter__(self):
+        nodes = heapq.nsmallest(self.maxsize, self.heap)
+        return iter(map(itemgetter(1), nodes))
+
