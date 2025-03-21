@@ -21,7 +21,7 @@ import time
 import matplotlib.pyplot as plt
 from network import Server
 
-NUM_NODES = 2          # Number of local Kademlia nodes (you can adjust)
+NUM_NODES = 10          # Number of local Kademlia nodes (you can adjust)
 BASE_PORT = 8468       # Starting port for the nodes
 TEST_DURATION = 60     # Test duration in seconds (1 minute)
 
@@ -54,7 +54,7 @@ async def create_and_bootstrap_nodes(num_nodes: int, base_port: int):
 async def main():
     # 1. Create and bootstrap local nodes
     servers = await create_and_bootstrap_nodes(NUM_NODES, BASE_PORT)
-    print(f"{NUM_NODES} local Kademlia nodes created and bootstrapped.")
+    print(f"{NUM_NODES} local Kademlia nodes created and bootstrapped.\n")
 
     # We'll use the first node (servers[0]) to do the read/write test
     client = servers[0]
@@ -115,10 +115,11 @@ async def main():
 
     # ===== Test summary =====
     print("===== 1-Minute Kademlia Throughput Test =====")
-    print(f"Number of nodes:           {NUM_NODES}")
-    print(f"Test Duration:             {TEST_DURATION} seconds")
-    print(f"Total successful stores:   {total_sets}")
-    print(f"Total successful retrieves:{total_gets}")
+    print(f"Number of nodes:            {NUM_NODES}")
+    print(f"Test Duration:              {TEST_DURATION} seconds")
+    print(f"Total successful stores:    {total_sets}")
+    print(f"Total successful retrieves: {total_gets}")
+    print("=============================================\n")
 
     # Shut down all servers
     for s in servers:
@@ -142,4 +143,5 @@ async def main():
     plt.savefig('read.pdf')
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    for i in range(0, 5):
+        asyncio.run(main())
