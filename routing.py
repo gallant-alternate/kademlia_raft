@@ -21,7 +21,7 @@ class KBucket:
         self.last_updated = time.monotonic()
 
     def get_nodes(self):
-        return self.nodes.values()
+        return list(self.nodes.values())
 
     def split(self):
         midpoint = (self.range[0]+ self.range[1]) //2
@@ -51,7 +51,7 @@ class KBucket:
     def is_new_node(self, node):
         return node.id not in self.nodes
     
-    def add_nodes(self, node):
+    def add_node(self, node):
         if node.id in self.nodes:
             del self.nodes[node.id]
             self.nodes[node.id] = node #to maintain the order delete and insert again
@@ -149,7 +149,7 @@ class RoutingTable:
         return [b for b in self.buckets if b.last_updated < hrago]
     
     def remove_contact(self, node):
-        self.buckets[self.get_bucket_for(node)].remove_node()
+        self.buckets[self.get_bucket_for(node)].remove_node(node)
 
     def add_contact(self,node):
         idx = self.get_bucket_for(node)
@@ -166,6 +166,9 @@ class RoutingTable:
         else:
             asyncio.ensure_future(self.protocol.call_ping(bucket.head()))
 
+    def is_new_node(self, node):
+        index = self.get_bucket_for(node)
+        return self.buckets[index].is_new_node(node)
     
     def get_bucket_for(self,node):
         for idx, bucket in enumerate(self.buckets):
@@ -177,7 +180,7 @@ class RoutingTable:
             k = k or self.ksize
             nodes = []
             for neighbor in TableTraverser(self, node):
-                notexcluded = exclude is None or not neighbor.same_home_as(exclude)
+                notexcluded = exclude is None or not neighbor.same_as_home(exclude)
                 if neighbor.id != node.id and notexcluded:
                     heapq.heappush(nodes, (node.distance_to(neighbor), neighbor))
                 if len(nodes) == k:

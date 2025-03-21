@@ -18,7 +18,7 @@ class KademliaProtocol(RPCProtocol):
         self.storage = storage
         self.source_node = source_node
 
-    def get_refresh_id(self):
+    def get_refresh_ids(self):
         """
         Get node ids which have not been updated for an hour
         """

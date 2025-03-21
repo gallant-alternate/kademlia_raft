@@ -55,7 +55,7 @@ class ForgetfulStorage(IStorage):
     def __getitem__(self, key):
         return self.data[key][1]
     
-    def get(self, key, default):
+    def get(self, key, default=None):
         if key in self.data:
             return self[key]
         return default

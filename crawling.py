@@ -58,7 +58,7 @@ class SpiderCrawl:
         self.last_ids_crawled = self.nearest.get_ids()
 
         dicts = {}
-        for peer in self.nearest.get_uncontacted()[:count]:
+        for peer in self.nearest.get_not_contacted()[:count]:
             dicts[peer.id] = rpcmethod(peer, self.node)
             self.nearest.mark_contacted(peer)
         found = await gather_dict(dicts)

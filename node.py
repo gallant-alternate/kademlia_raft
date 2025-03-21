@@ -1,6 +1,5 @@
 from operator import itemgetter
 import heapq
-from typing import Self
 
 class Node:
     """
@@ -17,7 +16,7 @@ class Node:
     def same_as_home(self, node):
         return self.ip == node.ip and self.port == node.port
     
-    def distance_to(self, node : Self ):
+    def distance_to(self, node):
         return self.long_id ^ node.long_id
     
     def __iter__(self):
@@ -77,8 +76,8 @@ class NodeHeap:
     def popleft(self):
         return heapq.heappop(self.heap)[1] if self else None
 
-    def get_id(self):
-        return [n.id for n in self.heap]
+    def get_ids(self):
+        return [n.id for n in self]
 
 
     def have_contacted_all(self):
