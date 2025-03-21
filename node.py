@@ -3,9 +3,9 @@ import heapq
 from typing import Self
 
 class Node:
-    '''
+    """
     Node contains there thing <node id, port, ip>
-    '''
+    """
 
     def __init__(self, node_id, ip=None, port=None):
         self.id = node_id
@@ -34,10 +34,10 @@ class Node:
     
 
 class NodeHeap:
-    '''
+    """
     Current implementation uses priority queue
     Improvement can be made by using binary search tree
-    '''
+    """
     def __init__(self, node: Node, maxsize):
         self.node = node
         self.heap = []
