@@ -36,6 +36,6 @@ def shared_prefix(args):
     return args[0][:i]
 
 
-def bytes_to_bit_string(bites):
-    bits = [bin(bite)[2:].rjust(8, '0') for bite in bites]
+def bytes_to_bit_string(bytes):
+    bits = [bin(byte)[2:].rjust(8, '0') for byte in bytes]
     return "".join(bits)
