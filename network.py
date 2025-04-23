@@ -5,6 +5,7 @@ import random
 import pickle
 import asyncio
 import logging
+import time
 
 from protocol import KademliaProtocol
 from utils import digest
@@ -14,6 +15,62 @@ from crawling import ValueSpiderCrawl
 from crawling import NodeSpiderCrawl
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+
+class DynamicQuorum:
+    def __init__(self, min_r=1, min_w=1, min_n=3):
+        self.min_r = min_r  # Minimum read quorum
+        self.min_w = min_w  # Minimum write quorum
+        self.min_n = min_n  # Minimum total replicas
+        self.current_r = min_r
+        self.current_w = min_w
+        self.current_n = min_n
+        self.response_times = []
+        self.failure_counts = 0
+        self.last_adjustment = time.monotonic()
+
+    def adjust_quorum(self, latency, success):
+        """Adjust R and W based on network conditions"""
+        current_time = time.monotonic()
+        
+        # Only adjust every 5 seconds
+        if current_time - self.last_adjustment < 5:
+            return
+            
+        self.response_times.append(latency)
+        if len(self.response_times) > 100:
+            self.response_times.pop(0)
+            
+        if not success:
+            self.failure_counts += 1
+        else:
+            self.failure_counts = max(0, self.failure_counts - 1)
+
+        avg_latency = sum(self.response_times) / len(self.response_times)
+        
+        # If high latency or failures, increase read quorum for better consistency
+        if avg_latency > 1.0 or self.failure_counts > 3:
+            self.current_r = min(self.current_n - 1, self.current_r + 1)
+            self.current_w = max(self.min_w, self.current_w - 1)
+        else:
+            # If network is healthy, balance R and W
+            self.current_r = max(self.min_r, self.current_r - 1)
+            self.current_w = min(self.current_n - 1, self.current_w + 1)
+            
+        # Ensure R + W > N for strong consistency
+        if self.current_r + self.current_w <= self.current_n:
+            self.current_w = self.current_n - self.current_r + 1
+            
+        self.last_adjustment = current_time
+
+    def get_read_quorum(self):
+        return self.current_r
+
+    def get_write_quorum(self):
+        return self.current_w
+
+    def get_total_replicas(self):
+        return self.current_n
 
 
 # pylint: disable=too-many-instance-attributes
@@ -44,6 +101,24 @@ class Server:
         self.protocol = None
         self.refresh_loop = None
         self.save_state_loop = None
+        self.quorum = DynamicQuorum()
+        self.port = None  # Add port attribute
+
+    async def listen(self, port, interface='0.0.0.0'):
+        """
+        Start listening on the given port.
+
+        Provide interface="::" to accept ipv6 address
+        """
+        self.port = port  # Store the port number
+        loop = asyncio.get_event_loop()
+        listen = loop.create_datagram_endpoint(self._create_protocol,
+                                               local_addr=(interface, port))
+        log.info("Node %i listening on %s:%i",
+                 self.node.long_id, interface, port)
+        self.transport, self.protocol = await listen
+        # finally, schedule refreshing table
+        self.refresh_table()
 
     def stop(self):
         if self.transport is not None:
@@ -57,21 +132,6 @@ class Server:
 
     def _create_protocol(self):
         return self.protocol_class(self.node, self.storage, self.ksize)
-
-    async def listen(self, port, interface='0.0.0.0'):
-        """
-        Start listening on the given port.
-
-        Provide interface="::" to accept ipv6 address
-        """
-        loop = asyncio.get_event_loop()
-        listen = loop.create_datagram_endpoint(self._create_protocol,
-                                               local_addr=(interface, port))
-        log.info("Node %i listening on %s:%i",
-                 self.node.long_id, interface, port)
-        self.transport, self.protocol = await listen
-        # finally, schedule refreshing table
-        self.refresh_table()
 
     def refresh_table(self, interval=3600):
         log.debug("Refreshing routing table")
@@ -135,28 +195,35 @@ class Server:
 
     async def get(self, key):
         """
-        Get a key if the network has it.
-
-        Returns:
-            :class:`None` if not found, the value otherwise.
+        Get a key if the network has it, using dynamic read quorum.
         """
         log.info("Looking up key %s", key)
         dkey = digest(key)
-        # if this node has it, return it
+        
+        start_time = time.monotonic()
+        
+        # Try local cache first
         if self.storage.get(dkey) is not None:
             return self.storage.get(dkey)
+            
         node = Node(dkey)
         nearest = self.protocol.router.find_neighbors(node)
         if not nearest:
             log.warning("There are no known neighbors to get key %s", key)
             return None
+            
         spider = ValueSpiderCrawl(self.protocol, node, nearest,
-                                  self.ksize, self.alpha)
-        return await spider.find()
+                               self.ksize, self.alpha)
+                               
+        result = await spider.find()
+        latency = time.monotonic() - start_time
+        
+        self.quorum.adjust_quorum(latency, result is not None)
+        return result
 
     async def set(self, key, value):
         """
-        Set the given string key to the given value in the network.
+        Set the given string key to the given value in the network with dynamic write quorum.
         """
         if not check_dht_value_type(value):
             raise TypeError(
@@ -164,7 +231,13 @@ class Server:
             )
         log.info("setting '%s' = '%s' on network", key, value)
         dkey = digest(key)
-        return await self.set_digest(dkey, value)
+        
+        start_time = time.monotonic()
+        success = await self.set_digest(dkey, value)
+        latency = time.monotonic() - start_time
+        
+        self.quorum.adjust_quorum(latency, success)
+        return success
 
     async def set_digest(self, dkey, value):
         """

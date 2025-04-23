@@ -142,6 +142,119 @@ async def main():
     plt.plot(time_stamps, gets_per_sec_data)
     plt.savefig('read.pdf')
 
+class ChurnSimulator:
+    def __init__(self, base_port=8468, initial_nodes=10):
+        self.base_port = base_port
+        self.initial_nodes = initial_nodes
+        self.active_nodes = []
+        self.failed_nodes = []
+        self.next_port = base_port + initial_nodes
+
+    async def setup_initial_network(self):
+        """Setup initial network with specified number of nodes"""
+        self.active_nodes = await create_and_bootstrap_nodes(self.initial_nodes, self.base_port)
+        return self.active_nodes[0]  # Return first node as primary contact
+
+    async def simulate_node_failure(self, fail_percentage=0.2):
+        """Simulate sudden failure of nodes"""
+        num_to_fail = int(len(self.active_nodes) * fail_percentage)
+        for _ in range(num_to_fail):
+            if self.active_nodes:
+                node = random.choice(self.active_nodes)
+                self.active_nodes.remove(node)
+                self.failed_nodes.append(node)
+                node.stop()
+                print(f"Node failed. Active nodes: {len(self.active_nodes)}")
+
+    async def add_new_node(self):
+        """Add a new node to the network"""
+        if not self.active_nodes:
+            return None
+            
+        bootstrap_node = ("127.0.0.1", self.base_port)
+        new_node = Server()
+        await new_node.listen(self.next_port)
+        await new_node.bootstrap([bootstrap_node])
+        
+        self.active_nodes.append(new_node)
+        self.next_port += 1
+        print(f"New node added. Active nodes: {len(self.active_nodes)}")
+        return new_node
+
+    def get_active_node_count(self):
+        return len(self.active_nodes)
+
+async def test_network_churn():
+    """Test network resilience under churn conditions"""
+    churn = ChurnSimulator()
+    primary_node = await churn.setup_initial_network()
+    
+    test_data = {}
+    successful_ops = 0
+    failed_ops = 0
+    
+    # Test duration and intervals
+    test_duration = 300  # 5 minutes
+    churn_interval = 30  # Simulate churn every 30 seconds
+    operation_interval = 1  # Perform operations every second
+    
+    start_time = time.monotonic()
+    last_churn_time = start_time
+    
+    while time.monotonic() - start_time < test_duration:
+        current_time = time.monotonic()
+        
+        # Simulate network churn periodically
+        if current_time - last_churn_time >= churn_interval:
+            await churn.simulate_node_failure(0.2)  # 20% node failure
+            for _ in range(2):  # Add some new nodes
+                await churn.add_new_node()
+            last_churn_time = current_time
+            
+        # Perform operations
+        try:
+            key = random_string(8)
+            value = random_string(12)
+            
+            # Try to store value
+            store_success = await primary_node.set(key, value)
+            if store_success:
+                test_data[key] = value
+                successful_ops += 1
+            else:
+                failed_ops += 1
+                
+            # Try to retrieve a random existing value
+            if test_data:
+                test_key = random.choice(list(test_data.keys()))
+                retrieved = await primary_node.get(test_key)
+                if retrieved == test_data[test_key]:
+                    successful_ops += 1
+                else:
+                    failed_ops += 1
+                    
+        except Exception as e:
+            failed_ops += 1
+            print(f"Operation failed: {str(e)}")
+            
+        await asyncio.sleep(operation_interval)
+    
+    # Calculate and display results
+    total_ops = successful_ops + failed_ops
+    success_rate = (successful_ops / total_ops) * 100 if total_ops > 0 else 0
+    
+    print("\n===== Churn Test Results =====")
+    print(f"Test Duration: {test_duration} seconds")
+    print(f"Initial Nodes: {churn.initial_nodes}")
+    print(f"Final Active Nodes: {churn.get_active_node_count()}")
+    print(f"Total Operations: {total_ops}")
+    print(f"Successful Operations: {successful_ops}")
+    print(f"Failed Operations: {failed_ops}")
+    print(f"Success Rate: {success_rate:.2f}%")
+    print("============================")
+
 if __name__ == "__main__":
-    for i in range(0, 5):
-        asyncio.run(main())
+    # Run both standard throughput test and churn test
+    asyncio.run(main())  # Original throughput test
+    print("\nStarting Churn Test...")
+    asyncio.run(test_network_churn())  # New churn test
