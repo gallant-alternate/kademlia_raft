@@ -27,9 +27,9 @@ from utils import digest
 
 # Test Configuration
 BASE_PORT = 8468
-INITIAL_NODES = 15
+INITIAL_NODES = 50
 TEST_DURATION = 300  # 5 minutes per test
-DATA_POINTS = 1000  # Number of operations per test
+DATA_POINTS = 5000  # Number of operations per test
 CSV_FILE = "test_results.csv"
 PLOTS_DIR = "test_plots"
 
@@ -159,28 +159,38 @@ class KademliaTestSuite:
             if len(active_servers) > 5 and random.random() < 0.1:
                 failed = random.choice(active_servers[1:])  # Don't remove primary
                 port = failed.port
-                self.used_ports.remove(port)  # Free up the port
-                failed.stop()
+                
+                # Properly clean up the failed node
+                await failed.stop()  # Make stop async
+                self.used_ports.remove(port)
                 active_servers.remove(failed)
+                
+                # Add delay after node removal to allow network stabilization
+                await asyncio.sleep(1)
                 
                 # Find an available port
                 new_port = BASE_PORT
                 while new_port in self.used_ports:
                     new_port += 1
                 
-                # Add new node with retries
+                # Add new node with retries and proper error handling
                 for attempt in range(max_retries):
                     try:
                         new_server = Server()
                         await new_server.listen(new_port)
                         self.used_ports.add(new_port)
+                        # Add delay before bootstrap to ensure proper initialization
+                        await asyncio.sleep(0.5)
                         await new_server.bootstrap([("127.0.0.1", BASE_PORT)])
+                        # Add delay after bootstrap to allow routing table updates
+                        await asyncio.sleep(0.5)
                         active_servers.append(new_server)
                         servers.append(new_server)
                         break
                     except Exception as e:
                         if attempt == max_retries - 1:
                             print(f"Failed to add new node after {max_retries} attempts: {e}")
+                            continue
                         await asyncio.sleep(1)  # Wait before retry
             
             # Test operations during churn with retries

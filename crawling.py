@@ -107,16 +107,17 @@ class ValueSpiderCrawl(SpiderCrawl):
         return await self.find()
 
     async def _handle_found_values(self, values):
-        """
-        We got some values!  Exciting.  But let's make sure
-        they're all the same or freak out a little bit.  Also,
-        make sure we tell the nearest node that *didn't* have
-        the value to store it.
-        """
-        value_counts = Counter(values)
+        # Flatten any lists in values (in case a node returns a list)
+        flat_values = []
+        for v in values:
+            if isinstance(v, list):
+                flat_values.extend(v)
+            else:
+                flat_values.append(v)
+        value_counts = Counter(flat_values)
         if len(value_counts) != 1:
             log.warning("Got multiple values for key %i: %s",
-                        self.node.long_id, str(values))
+                        self.node.long_id, str(flat_values))
         value = value_counts.most_common(1)[0][0]
 
         peer = self.nearest_without_value.popleft()
