@@ -46,7 +46,7 @@ async def main():
     plt.ylabel("Consistency Score (fraction of nodes correct)")
     plt.xlabel("Churn Round")
     plt.ylim(0, 1.05)
-    plt.savefig("test_plots/churn_resilience.png")
+    plt.savefig("new_test_plots/churn_resilience.png")
     print("Churn test complete. Plot saved as test_plots/churn_resilience.png.")
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ async def main():
              ha='right', va='top', transform=plt.gca().transAxes, 
              bbox=dict(facecolor='white', alpha=0.7, edgecolor='gray'))
     plt.ylim(0, 1.05)
-    plt.savefig("test_plots/consistency_scores.png")
+    plt.savefig("new_test_plots/consistency_scores.png")
     print("Consistency test complete. Plot saved as consistency_scores.png.")
 
 if __name__ == "__main__":

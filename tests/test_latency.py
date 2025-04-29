@@ -33,7 +33,7 @@ async def main():
     plt.text(0.95, 0.95, f"Nodes: {NUM_NODES}\nOps: {len(latencies)}", 
              ha='right', va='top', transform=plt.gca().transAxes, 
              bbox=dict(facecolor='white', alpha=0.7, edgecolor='gray'))
-    plt.savefig("test_plots/simple_latency_plot.png")
+    plt.savefig("new_test_plots/simple_latency_plot.png")
     print("Test complete. Plot saved as simple_latency_plot.png.")
 
 if __name__ == "__main__":
